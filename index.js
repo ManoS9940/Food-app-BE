@@ -11,6 +11,13 @@ process.on("unhandledRejection", err => {
     server.close(() => process.exit(1))
   })
 
+  const cors = require('cors');
+const corsOptions ={
+    origin:'http://localhost:3000', 
+    credentials:true,            //access-control-allow-credentials:true
+    optionSuccessStatus:200
+}
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use("/api/auth", require("./Auth/route.js"))
 app.use(cookieParser());
