@@ -1,84 +1,54 @@
-const bcrypt = require("bcryptjs")
-const jwt = require('jsonwebtoken')
-const jwtSecret = process.env.jwtSecret
-const User = require("../model/user");
-
-exports.register = async (req, res, next)=>{
-    const {username, password}=req.body
-    if(password.length<6){
-        return res.status(400).send("Password should not be less than 6 characters")
+ const jwtSecret = process.env.jwtSecret
+ const express = require('express');
+ const bcrypt = require('bcryptjs');
+ const jwt = require('jsonwebtoken');
+ 
+ // Import the model for the User schema
+ const User = require('../model/user');
+ 
+ // Route for handling user registration
+exports.register = async (req, res) => {
+  const { username, password } = req.body;
+  try {
+    const existingUser = await User.findOne({ username });
+    if (existingUser) {
+      return res.status(400).send({ message: 'Username already exists' });
     }
-    bcrypt.hash(password, 10).then(async (hash) => {
-        await User.create({
-          username,
-          password:hash,
-        })
-          .then((user) => {
-            const maxAge = 3 * 60 * 60;
-            const token = jwt.sign(
-              { id: user._id, username, role: user.role },
-              jwtSecret,
-              {
-                expiresIn: maxAge, // 3hrs in sec
-              }
-            );
-            res.cookie("jwt", token, {
-              httpOnly: true,
-              maxAge: maxAge * 1000, // 3hrs in ms
-            });
-            res.status(201).json({
-              user: user._id,
-            });
-          })
-          .catch((error) =>
-            res.status(400).json({
-              message: "User not successful created",
-              error: error.message,
-            })
-          );
-      });
-}
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const user = new User({
+      username,
+      password: hashedPassword
+    });
+    await user.save();
+    res.status(200).send({ message: 'Registration successful' });
+  } catch (error) {
+    res.status(500).send({ message: 'Registration failed' });
+  }
+};
 
-exports.login = async(req,res,next)=>{
-    const {username, password} = req.body
-    if(!username||!password){
-        return res.status(400).json({message:"Username or Password not provided"})
-    }
-    try {
-        const user = await User.findOne({username})
-        if(!user){
-            res.status(400).json({message:"User not found"})
-        }
-        else{
-            bcrypt.compare(password, user.password).then(function (result) {
-                if (result) {
-                  const maxAge = 3 * 60 * 60;
-                  const token = jwt.sign(
-                    { id: user._id, username, role: user.role },
-                    jwtSecret,
-                    {
-                      expiresIn: maxAge, // 3hrs in sec
-                    }
-                  );
-                  res.cookie("jwt", token, {
-                    httpOnly: true,
-                    maxAge: maxAge * 1000, // 3hrs in ms
-                  });
-                  res.status(201).json({
-                    user: user._id,
-                  });
-                } else {
-                  res.status(400).json({ message: "Login not succesful" });
-                }
-              });
-            }
-          } catch (error) {
-            res.status(400).json({
-              message: "An error occurred",
-              error: error.message,
-            });
-          }
-}
+ 
+
+ 
+ exports.login = async (req, res) => {
+   const { username, password } = req.body;
+ 
+   // find the user in the database
+   const user = await User.findOne({ username });
+   if (!user) return res.status(400).json({ message: 'User not found' });
+ 
+   // compare the passwords
+   const isMatch = await bcrypt.compare(password, user.password);
+   if (!isMatch) return res.status(400).json({ message: 'Incorrect password' });
+ 
+   // create and sign the JWT
+   const payload = { id: user._id, username: user.username };
+   const token = jwt.sign(payload, jwtSecret, { expiresIn: 3600 });
+ 
+   return res.status(200).json({ token });
+ };
+ 
+ 
+
 
 exports.update = async (req, res, next) => {
     const { role, id } = req.body;
